@@ -76,7 +76,7 @@
             <input type="password" id="password" placeholder="Password">
             <button id="signUpBtn">Sign Up</button>
             <button id="signInBtn">Sign In</button>
-            <button onclick="signOut()">Sign Out</button>
+            <button id="signOutBtn">Sign Out</button>
         </div>
         <div id="app-container" style="display: none;">
             <h2>Menu</h2>
@@ -135,6 +135,8 @@
             currentUser = null;
             document.getElementById('app-container').style.display = 'none';
         }
+
+        document.getElementById('signOutBtn').addEventListener('click', signOut);
 
         async function loadMenuItems() {
             const { data, error } = await supabase.from('menu_items').select('*');
