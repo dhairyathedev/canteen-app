@@ -68,8 +68,8 @@
 
     <script type="module">
         import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
-        const supabaseUrl = 'https://zcudmgdozarzifhfehbh.supabase.co';
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpjdWRtZ2RvemFyemlmaGZlaGJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTkyNDQ3NTksImV4cCI6MjAzNDgyMDc1OX0._Ec6TLx2_5bNfT-uq8tbwgUkPmJtv8aqTZmfHDUdvFM';
+        const supabaseUrl = 'SUPABASE_URL';
+        const supabaseKey = 'SUPABASE_ANON_KEY';
         const supabase = createClient(supabaseUrl, supabaseKey);
 
         async function loadOrders(status = '', dateFrom = '', dateTo = '') {
