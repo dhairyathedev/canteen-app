@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canteen Orders Management</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        #filters {
+            margin-bottom: 20px;
+        }
+        #filters label, #filters input, #filters select {
+            margin-right: 10px;
+        }
+        #orders {
+            display: grid;
+            gap: 20px;
+        }
+        .order-card {
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .order-card h3 {
+            margin-top: 0;
+        }
+        .status-pending { color: #f39c12; }
+        .status-completed { color: #27ae60; }
+        .status-cancelled { color: #c0392b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Canteen Orders Management</h1>
+        <div id="filters">
+            <label for="status-filter">Status:</label>
+            <select id="status-filter">
+                <option value="">All</option>
+                <option value="pending">Pending</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+            </select>
+            <label for="date-from">From:</label>
+            <input type="date" id="date-from">
+            <label for="date-to">To:</label>
+            <input type="date" id="date-to">
+            <button onclick="applyFilters()">Apply Filters</button>
+        </div>
+        <div id="orders"></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
+        const supabaseUrl = 'https://zcudmgdozarzifhfehbh.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpjdWRtZ2RvemFyemlmaGZlaGJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTkyNDQ3NTksImV4cCI6MjAzNDgyMDc1OX0._Ec6TLx2_5bNfT-uq8tbwgUkPmJtv8aqTZmfHDUdvFM';
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
+        async function loadOrders(status = '', dateFrom = '', dateTo = '') {
+            let query = supabase
+                .from('orders')
+                .select(`
+                    id,
+                    user_id,
+                    total_amount,
+                    status,
+                    created_at,
+                    order_items (
+                        menu_item_id,
+                        quantity,
+                        price_per_unit,
+                        subtotal,
+                        menu_items (name)
+                    )
+                `)
+                .order('created_at', { ascending: false });
+
+            if (status) {
+                query = query.eq('status', status);
+            }
+            if (dateFrom) {
+                query = query.gte('created_at', dateFrom);
+            }
+            if (dateTo) {
+                query = query.lte('created_at', dateTo);
+            }
+
+            const { data: orders, error } = await query;
+
+            if (error) {
+                alert('Error fetching orders: ' + error.message);
+                return;
+            }
+
+            displayOrders(orders);
+        }
+
+        function displayOrders(orders) {
+            const ordersContainer = document.getElementById('orders');
+            ordersContainer.innerHTML = '';
+
+            if (orders.length === 0) {
+                ordersContainer.innerHTML = '<p>No orders found.</p>';
+                return;
+            }
+
+            orders.forEach(order => {
+                const orderElement = document.createElement('div');
+                orderElement.className = 'order-card';
+                
+                const date = new Date(order.created_at).toLocaleString();
+                const itemsList = order.order_items.map(item => 
+                    `${item.menu_items.name} (x${item.quantity}) - $${item.subtotal.toFixed(2)}`
+                ).join('<br>');
+
+                orderElement.innerHTML = `
+                    <h3>Order #${order.id}</h3>
+                    <p>User ID: ${order.user_id}</p>
+                    <p>Date: ${date}</p>
+                    <p>Status: <span class="status-${order.status.toLowerCase()}">${order.status}</span></p>
+                    <p>Items:<br>${itemsList}</p>
+                    <p>Total: $${order.total_amount.toFixed(2)}</p>
+                    <button id="updateOrderStatusComplete">Mark as Completed</button>
+                    <button id="updateOrderStatusCancel")">Cancel Order</button>
+                `;
+
+                orderElement.querySelector('#updateOrderStatusComplete').addEventListener('click', () => {
+                    updateOrderStatus(order.id, 'completed');
+                });
+
+                orderElement.querySelector('#updateOrderStatusCancel').addEventListener('click', () => {
+                    updateOrderStatus(order.id, 'cancelled');
+                });
+                ordersContainer.appendChild(orderElement);
+            });
+        }
+
+        async function updateOrderStatus(orderId, newStatus) {
+            const { error } = await supabase
+                .from('orders')
+                .update({ status: newStatus })
+                .eq('id', orderId);
+
+            if (error) {
+                alert('Error updating order status: ' + error.message);
+            } else {
+                alert('Order status updated successfully');
+                applyFilters(); // Refresh the orders list
+            }
+        }
+
+        function applyFilters() {
+            const status = document.getElementById('status-filter').value;
+            const dateFrom = document.getElementById('date-from').value;
+            const dateTo = document.getElementById('date-to').value;
+            loadOrders(status, dateFrom, dateTo);
+        }
+
+        // Initial load of orders
+        loadOrders();
+    </script>
+</body>
+</html>
