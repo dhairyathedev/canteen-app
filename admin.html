@@ -61,7 +61,7 @@
             <input type="date" id="date-from">
             <label for="date-to">To:</label>
             <input type="date" id="date-to">
-            <button onclick="applyFilters()">Apply Filters</button>
+            <button id="applyFilters">Apply Filters</button>
         </div>
         <div id="orders"></div>
     </div>
@@ -171,6 +171,8 @@
             const dateTo = document.getElementById('date-to').value;
             loadOrders(status, dateFrom, dateTo);
         }
+
+        document.getElementById('applyFilters').addEventListener('click', applyFilters);
 
         // Initial load of orders
         loadOrders();
