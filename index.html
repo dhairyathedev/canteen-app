@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canteen Ordering App</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        #auth-container, #app-container {
+            margin-top: 20px;
+        }
+        input, button {
+            margin: 10px 0;
+            padding: 8px;
+            width: 100%;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #menu-items {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .menu-item {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+        }
+        #order-summary {
+            margin-top: 20px;
+        }
+        #order-history {
+            margin-top: 20px;
+        }
+        .order-item {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .order-item h4 {
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Canteen Ordering App</h1>
+        <div id="auth-container">
+            <h2>Authentication</h2>
+            <input type="email" id="email" placeholder="Email">
+            <input type="password" id="password" placeholder="Password">
+            <button id="signUpBtn">Sign Up</button>
+            <button id="signInBtn">Sign In</button>
+            <button onclick="signOut()">Sign Out</button>
+        </div>
+        <div id="app-container" style="display: none;">
+            <h2>Menu</h2>
+            <div id="menu-items"></div>
+            <div id="order-summary">
+                <h3>Order Summary</h3>
+                <ul id="order-list"></ul>
+                <p>Total: $<span id="order-total">0.00</span></p>
+                <button id="placeOrder">Place Order</button>
+            </div>
+            <div id="order-history">
+                <h2>Order History</h2>
+                <div id="user-orders"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
+        const supabaseUrl = 'https://zcudmgdozarzifhfehbh.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpjdWRtZ2RvemFyemlmaGZlaGJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTkyNDQ3NTksImV4cCI6MjAzNDgyMDc1OX0._Ec6TLx2_5bNfT-uq8tbwgUkPmJtv8aqTZmfHDUdvFM';
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
+        let currentUser = null;
+        let menuItems = [];
+        let orderItems = [];
+
+        async function signUp() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const { user, error } = await supabase.auth.signUp({ email, password });
+            if (error) alert(error.message);
+            else alert('Sign up successful! Please check your email for verification.');
+        }
+
+        document.getElementById('signUpBtn').addEventListener('click', signUp);
+
+        async function signIn() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const { user, error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) alert(error.message);
+            else {
+                currentUser = user;
+                document.getElementById('app-container').style.display = 'block';
+                loadMenuItems();
+            }
+        }
+
+        document.getElementById('signInBtn').addEventListener('click', signIn);
+
+
+
+        async function signOut() {
+            await supabase.auth.signOut();
+            currentUser = null;
+            document.getElementById('app-container').style.display = 'none';
+        }
+
+        async function loadMenuItems() {
+            const { data, error } = await supabase.from('menu_items').select('*');
+            if (error) alert(error.message);
+            else {
+                menuItems = data;
+                displayMenuItems();
+            }
+        }
+
+        function displayMenuItems() {
+            const menuContainer = document.getElementById('menu-items');
+            menuContainer.innerHTML = '';
+            menuItems.forEach(item => {
+                const itemElement = document.createElement('div');
+                itemElement.className = 'menu-item';
+                itemElement.innerHTML = `
+                    <h3>${item.name}</h3>
+                    <p>$${item.price.toFixed(2)}</p>
+                    <button id="addToOrder">Add to Order</button>
+                `;
+                menuContainer.appendChild(itemElement);
+            });
+            menuContainer.querySelectorAll('#addToOrder').forEach((button, index) => {
+                button.addEventListener('click', () => addToOrder(menuItems[index].id));
+            });
+        }
+
+        async function loadUserOrders() {
+            if (!currentUser) return;
+
+            const { data: orders, error } = await supabase
+                .from('orders')
+                .select(`
+                    id,
+                    total_amount,
+                    status,
+                    created_at,
+                    order_items (
+                        menu_item_id,
+                        quantity,
+                        price_per_unit,
+                        subtotal,
+                        menu_items (name)
+                    )
+                `)
+                .eq('user_id', currentUser.id)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                alert('Error fetching orders: ' + error.message);
+                return;
+            }
+
+            displayUserOrders(orders);
+        }
+
+        function displayUserOrders(orders) {
+            const userOrdersContainer = document.getElementById('user-orders');
+            userOrdersContainer.innerHTML = '';
+
+            if (orders.length === 0) {
+                userOrdersContainer.innerHTML = '<p>No orders found.</p>';
+                return;
+            }
+
+            orders.forEach(order => {
+                const orderElement = document.createElement('div');
+                orderElement.className = 'order-item';
+                
+                const date = new Date(order.created_at).toLocaleString();
+                const itemsList = order.order_items.map(item => 
+                    `${item.menu_items.name} (x${item.quantity}) - $${item.subtotal.toFixed(2)}`
+                ).join('<br>');
+
+                orderElement.innerHTML = `
+                    <h4>Order #${order.id}</h4>
+                    <p>Date: ${date}</p>
+                    <p>Status: ${order.status}</p>
+                    <p>Items:<br>${itemsList}</p>
+                    <p>Total: $${order.total_amount.toFixed(2)}</p>
+                `;
+
+                userOrdersContainer.appendChild(orderElement);
+            });
+        }
+
+        // await loadUserOrders();
+        async function addToOrder(itemId) {
+            const item = menuItems.find(i => i.id === itemId);
+            if (item) {
+                orderItems.push(item);
+                updateOrderSummary();
+            }
+            await loadUserOrders();
+        }
+
+
+        function updateOrderSummary() {
+            const orderList = document.getElementById('order-list');
+            const orderTotal = document.getElementById('order-total');
+            orderList.innerHTML = '';
+            let total = 0;
+            orderItems.forEach(item => {
+                const li = document.createElement('li');
+                li.textContent = `${item.name} - $${item.price.toFixed(2)}`;
+                orderList.appendChild(li);
+                total += item.price;
+            });
+            orderTotal.textContent = total.toFixed(2);
+        }
+
+        async function placeOrder() {
+            if (!currentUser) {
+                alert('Please sign in to place an order.');
+                return;
+            }
+
+            // First, create the order
+            const { data: order, error: orderError } = await supabase
+                .from('orders')
+                .insert({ 
+                    user_id: currentUser.id,
+                    total_amount: orderItems.reduce((sum, item) => sum + item.price, 0),
+                    status: 'pending'
+                })
+                .select()
+                .single();
+
+            if (orderError) {
+                alert('Error creating order: ' + orderError.message);
+                return;
+            }
+
+            // Then, add order items
+            const orderItemsToInsert = orderItems.map(item => ({
+                order_id: order.id,
+                menu_item_id: item.id,
+                quantity: 1,  // You might want to add quantity selection in your UI
+                price_per_unit: item.price,
+                subtotal: item.price
+            }));
+
+            const { error: itemsError } = await supabase
+                .from('order_items')
+                .insert(orderItemsToInsert);
+
+            if (itemsError) {
+                alert('Error adding order items: ' + itemsError.message);
+                // You might want to delete the order here if adding items fails
+                return;
+            }
+
+            alert('Order placed successfully!');
+            orderItems = [];
+            updateOrderSummary();
+        }
+
+        document.getElementById('placeOrder').addEventListener('click', placeOrder);
+
+        // Check if user is already signed in
+        supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_IN' && session) {
+                currentUser = session.user;
+                document.getElementById('app-container').style.display = 'block';
+                loadMenuItems();
+            }
+        });
+    </script>
+</body>
+</html>
